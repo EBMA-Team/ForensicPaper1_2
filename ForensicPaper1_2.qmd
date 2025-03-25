@@ -21,7 +21,62 @@ format:
 bibliography: ForensicPapers.bib
 ---
 
-# Analysis Preamble
+# Mess around
+
+```{r}
+
+mydoi = c("https://doi.org/10.1002/14651858.CD005960.pub2")
+dl_path = "C:\\Users\\cscho\\Documents\\GitHub\\ForensicPaper1_2"
+
+get.review(doi = mydoi, dl_path, show.terms = TRUE)
+
+CochraneRev = read.review(file = "CD005960StatsDataOnly.rm5", path = dl_path)
+
+
+
+```
+
+```{r}
+studies = CochraneRev[[1]]
+ma = CochraneRev[[2]]
+```
+
+```{r}
+tab.ma <- ma |> dplyr::filter(
+  outcome.id == "CMP-001.06"
+)
+```
+
+```{r}
+
+idx = studies$comparison.nr == 1 & studies$outcome.nr == 6
+
+
+tab.studies = studies[idx, c("study.name", "events1", "total1", "events2", "total2", "effect.size")]
+tab.studies
+
+```
+
+```{r}
+
+myma = metabin(event.e = events1, n.e = total1,
+               event.c = events2, n.c = total2,
+               RR.Cochrane = TRUE, Q.Cochrane = TRUE, sm = "RR", data = tab.studies,
+               method.tau = "DL")
+summary(myma)
+
+```
+
+```{r}
+forest(myma, fontsize = 8)
+```
+
+```{r}
+(6/8) / 225
+```
+
+
+#  Preamble
 
 This analysis acts as a training activity to apply techniques described in [@heathers2025].
 
@@ -57,6 +112,8 @@ Load up required packages in advance using *pacman* package (v`{r} utils::packag
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(
+  "cochrane",
+  "meta",
   "cardx",
   "parallelly",
   "gargle",
@@ -202,405 +259,6 @@ Retrieve the full citation using the *rcrossref* package (v`{r} utils::packageVe
 ```{epoxy, Full Citation}
 
 {rcrossref::cr_cn(dois = targetDOI, format = "text", style = "apa")}
-
-```
-
-## Selection Rationale
-
-The selected paper appears at number 2 in "The top 100 most cited articles in Australian orthopaedic surgery" [@mcmillan2024].
-
-It has been cited 288 times (pubmed) or 524 times (crossref), depending on which citation database you trust the most.
-
-[![Metrics of selected citation as of 15-Feb-2025](AJSM%20Metrics.png)](https://journals.sagepub.com/doi/10.1177/0363546506296042)
-
-## Summary
-
-You can review the abstract for this paper [here](https://journals.sagepub.com/doi/10.1177/0363546506296042). In brief, this was an attempted RCT comparing two sources of graft material for reconstructing the anterior cruciate ligament in patients participating in high levels of competitive sport at the time of injury. The selected citation is the 10-year follow up of the comparison between groups, with previous reports at 2, 5 and 7 year follow ups (see Trial Protocol).
-
-# Bibliometric Analysis
-
-The burning question was how this paper is being cited in the contemporary literature, what is the sentiment of this paper? Sentiment analysis of citations [@kilicoglu2019], is a very new concept for me - but I wanted to understand how the paper has been used in citations over the last couple of years.
-
-I retrieved the citation list for this paper from *citationchaser* (the shiny app, I cant be bothered signing up for a plan for the API access) [@haddaway2022], which conducts a search through [lens.org](lens.org). Then draw in the bibliographic file with the *synthesisr* package (v`{r} utils::packageVersion("synthesisr")`) [@synthesisr].
-
-```{r, Retrieve Citations, warning = FALSE, echo = FALSE}
-
-# Define a temporary file location
-temp_file <- tempfile(fileext = ".bib")  # Assuming your citations are in BIB format
-                                        # Change extension if you have RIS, etc.
-
-# Find your specific file 
-citation_file <- googledrive::drive_find(
-  pattern = "Paper1Citations",  # Adjust the search pattern
-  n_max = 20
-  
-  ) 
-
-# If you found your file, download it
-if(nrow(citation_file) > 0) {
-  googledrive::drive_download(
-    file = citation_file[1,],  # Use the first match if multiple found
-    path = temp_file,
-    overwrite = TRUE
-  )
-} else {
-  print("File not found. Check name or permissions.")
-}
-
-```
-
-```{r, Read in Citations}
-
-# Read the citations using synthesisr from the temporary file
-Citations <- synthesisr::read_refs(
-  filename = temp_file,
-  tag_naming = "wos",
-  return_df = TRUE,
-
-  verbose = FALSE
-)
-
-# Optional: Remove the temporary file when done
-file.remove(temp_file)
-
-
-
-```
-
-Then pull out the last couple of years of citations using *tidyverse* (v`{r} utils::packageVersion("tidyverse")`) [@tidyverse].
-
-```{r, Filter Citations}
-CitationRecent <- Citations |> dplyr::select(   year,   DO ) |> dplyr::filter(   year > 2022 )
-```
-
-I took the DOIs and passed them to my reference management software [PaperPile](https://paperpile.com/about/) (PaperPile LLC, USA) and imported them to a folder. The software was able to update the metadata and retrieve fulltext files for those that were open access.
-
-I used the decision framework described by [@kilicoglu2019] to manually label them neutral, positive or negative sentiments with respect to the paper of interest. You can see the results (albeit selective unfortunately) in the table [here](https://docs.google.com/spreadsheets/d/1IYHUTOrSUvxQHVJ94ndt9BwrnIvejDg0EN1xY25k9js/edit?usp=sharing).
-
-The main takeaway is that the majority are *neutral* and mostly use the paper of interest as a support in the introduction. This might indicate a certain level of self-correction in the literature as the trial steadily loses its relevance to the main topic it attempted to address. Either way, a more detailed analysis with changes in citation patterns over time, and without my selection bias, would be required to understand this fully.
-
-## The paper
-
-Check if it appears in the RW database using *stringr* (v`{r} utils::packageVersion("stringr")`) [@stringr]
-
-```{r, Check Retractions Paper}
-
-TargetCitation <- rcrossref::cr_works(dois = "10.1177/0363546506296042")
-
-RWPaper <- Retractions |> dplyr::filter(
-  stringr::str_detect(OriginalPaperDOI,TargetCitation$data$doi) 
-)
-
-```
-
-Combine an if loop with the *epoxy* package (v`{r} utils::packageVersion("epoxy")`) [@epoxy] to assess whether there are any retractions.
-
-```{r, Count Retractions}
-
-if_else(
-  nrow(RWPaper) < 1,
-  "No Retraction Found",
-  epoxy::epoxy("There were {nrow(RWPaper)} retractions identified")
-)
-```
-
-There were 0 comments for this paper on PubPeer \[ 15-Feb-2025\].
-
-## The authors
-
-So I wrote a function to work through the surnames and bounce them against the RW database. We can argue about validation of this step until the cows come home, but for now I'm fairly satisfied that the individual authors do not have any retractions. The function is built on the following packages;
-
--   *stringr* (v`{r} utils::packageVersion("stringr")`) [@stringr]
-
--   *stringdist* (v`{r} utils::packageVersion("stringdist")`) [@stringdist]
-
--   *memoise* (v`{r} utils::packageVersion("memoise")`) [@memoise]
-
--   *parallel* (v`{r} utils::packageVersion("parallel")`) [@parallel]
-
--   *furrr* (v`{r} utils::packageVersion("furrr")`) [@furrr]
-
--   *progressr* (v`{r} utils::packageVersion("progressr")`) [@progressr]
-
-You can see for yourself in the matches table below (maybe I missed one?).
-
-```{r, Retractions Author - Function}
-
-
-setup_parallel <- function(cores = NULL) {
-  # Check for cloud environments or system limitations
-  max_allowed_cores <- parallelly::availableCores()
-  
-  if (is.null(cores)) {
-    # Use 1 less than available, but respect system limits
-    cores <- min(parallel::detectCores() - 1, max_allowed_cores)
-    # Ensure at least 1 core is used
-    cores <- max(cores, 1)
-  } else {
-    # Make sure user-specified cores don't exceed limits
-    cores <- min(cores, max_allowed_cores)
-  }
-  
-  # Set up the future plan
-  future::plan(future::multisession, workers = cores)
-}
-
-# Create memoized helper functions with explicit namespace references
-mem_stringdist <- memoise::memoise(stringdist::stringdist)
-mem_str_detect <- memoise::memoise(stringr::str_detect)
-
-search_retractions_by_authors <- function(author_names, 
-                                        retraction_data, 
-                                        fuzzy_threshold = 0.2,
-                                        date_from = NULL,
-                                        date_to = NULL,
-                                        cores = NULL) {
-
-  # Initialize parallel processing
-  setup_parallel(cores)
-  
-  # Don't nest with_progress calls - move this outside if calling from another function
-  # that already uses with_progress
-  p <- progressr::progressor(steps = 4)
-  p(amount = 1, message = "Initializing...")
-  
-  # Convert author names to lowercase for case-insensitive matching
-  author_names_lower <- tolower(author_names)
-  
-  # Process retraction data
-  matching_retractions <- retraction_data %>%
-    # Convert dates to proper format - handle potential NA values
-    mutate(
-      RetractionDate = as.Date(RetractionDate, format = "%m/%d/%Y"),
-      OriginalPaperDate = as.Date(OriginalPaperDate, format = "%m/%d/%Y")
-    ) 
-  
-  # Apply date filters if provided (with error handling)
-  if (!is.null(date_from)) {
-    date_from_parsed <- try(as.Date(date_from), silent = TRUE)
-    if (!inherits(date_from_parsed, "try-error") && !is.na(date_from_parsed)) {
-      matching_retractions <- matching_retractions %>% 
-        filter(!is.na(RetractionDate) & RetractionDate >= date_from_parsed)
-    }
-  }
-  
-  if (!is.null(date_to)) {
-    date_to_parsed <- try(as.Date(date_to), silent = TRUE)
-    if (!inherits(date_to_parsed, "try-error") && !is.na(date_to_parsed)) {
-      matching_retractions <- matching_retractions %>% 
-        filter(!is.na(RetractionDate) & RetractionDate <= date_to_parsed)
-    }
-  }
-  
-  # Convert Author column to lowercase for matching
-  matching_retractions <- matching_retractions %>%
-    mutate(authors_lower = tolower(Author))
-  
-  p(amount = 1, message = "Processing data...")
-  
-  # Use safer versions of the string operations with error handling
-  matching_retractions <- matching_retractions %>%
-    mutate(
-      exact_matches = furrr::future_map_chr(
-        authors_lower,
-        function(author_string) {
-          if (is.na(author_string)) return("")
-          
-          matches <- author_names_lower[sapply(author_names_lower, function(name) {
-            stringr::str_detect(author_string, stringr::str_c("\\b", name, "\\b"))
-          })]
-          stringr::str_c(matches, collapse = "; ")
-        },
-        .options = furrr::furrr_options(seed = TRUE)
-      )
-    )
-  
-  p(amount = 1, message = "Performing exact matching...")
-  
-  # Perform fuzzy matching with error handling
-  matching_retractions <- matching_retractions %>%
-    mutate(
-      fuzzy_matches = furrr::future_map_chr(
-        authors_lower,
-        function(author_string) {
-          if (is.na(author_string)) return("")
-          
-          individual_authors <- stringr::str_split(author_string, ";")[[1]] %>%
-            stringr::str_trim()
-          
-          matches <- author_names_lower[sapply(author_names_lower, function(search_name) {
-            min_dist <- min(sapply(individual_authors, function(x) 
-              stringdist::stringdist(x, search_name, method = "jw")), na.rm = TRUE)
-            !is.na(min_dist) && min_dist <= fuzzy_threshold
-          })]
-          
-          stringr::str_c(unique(matches), collapse = "; ")
-        },
-        .options = furrr::furrr_options(seed = TRUE)
-      )
-    )
-  
-  p(amount = 1, message = "Performing fuzzy matching...")
-  
-  # Filter and select columns
-  results <- matching_retractions %>%
-    filter(exact_matches != "" | fuzzy_matches != "") %>%
-    select(
-      Title,
-      Author,
-      exact_matches,
-      fuzzy_matches,
-      Journal,
-      Publisher,
-      Country,
-      RetractionDate,
-      OriginalPaperDate,
-      RetractionDOI,
-      OriginalPaperDOI,
-      Reason,
-      everything(),
-      -authors_lower
-    )
-  
-  # Generate summary statistics with error handling
-  summary_stats <- list(
-    total_matches = nrow(results),
-    matches_by_year = results %>%
-      mutate(year = format(RetractionDate, "%Y")) %>%
-      count(year, name = "retractions") %>%
-      arrange(desc(year)),
-    matches_by_publisher = results %>%
-      count(Publisher, sort = TRUE, name = "retractions"),
-    matches_by_country = results %>%
-      count(Country, sort = TRUE, name = "retractions"),
-    exact_vs_fuzzy = c(
-      exact = sum(results$exact_matches != "", na.rm = TRUE),
-      fuzzy_only = sum(results$exact_matches == "" & results$fuzzy_matches != "", na.rm = TRUE)
-    ),
-    date_range = if(nrow(results) > 0) {
-      c(
-        min = min(results$RetractionDate, na.rm = TRUE),
-        max = max(results$RetractionDate, na.rm = TRUE)
-      )
-    } else {
-      c(min = NA, max = NA)
-    }
-  )
-  
-  # Return results
-  list(
-    matches = results,
-    summary = summary_stats
-  )
-}
-
-# Clear memoization cache function
-clear_retraction_search_cache <- function() {
-  memoise::forget(mem_stringdist)
-  memoise::forget(mem_str_detect)
-  gc()  # Run garbage collection
-}
-
-```
-
-Then pull out the search terms using *tidyverse.*
-
-```{r, Retractions Author Surname}
-# Set up handlers for progress reporting
-
-handlers(handler_progress(
-  format = ":spin :current/:total (:message) [:bar] :percent in :elapsed ETA: :eta",
-  width = 100
-))
-
-# Extract just family names
-author_surnames <- TargetCitation$data$author[[1]] |>
-  pull(family)
-
-# Run the search with more error handling
-search_results <- tryCatch({
-  # Don't nest with_progress here since it's already used in the function
-  search_retractions_by_authors(
-    author_surnames,
-    Retractions,
-    fuzzy_threshold = 0.2, 
-    date_from = "2020-01-01",
-    date_to = "2024-12-31",
-    cores = 2  # Limit cores explicitly for Connect environment
-  )
-}, error = function(e) {
-  # Print the error
-  message("Error in search: ", e$message)
-  # Return empty results as fallback
-  list(
-    matches = tibble(),
-    summary = list(
-      total_matches = 0,
-      matches_by_year = tibble(year = character(0), retractions = integer(0)),
-      matches_by_publisher = tibble(Publisher = character(0), retractions = integer(0)),
-      matches_by_country = tibble(Country = character(0), retractions = integer(0)),
-      exact_vs_fuzzy = c(exact = 0, fuzzy_only = 0),
-      date_range = c(min = NA, max = NA)
-    )
-  )
-})
-
-# Access the results
-AuthorMatches <- search_results$matches
-summary_stats <- search_results$summary
-
-```
-
-Then present in a table using *gt* package (v`{r} utils::packageVersion("gt")`) [@gt].
-
-```{r, Author Matches}
-
-
-gt::gt(AuthorMatches |> dplyr::select(
-  Title,
-  Author,
-  Journal,
-  Country,
-  exact_matches,
-  fuzzy_matches,
-  RetractionDate
-)) |>
-  tab_options(
-    table.width = px(1200),  # Wider overall table
-    table.font.size = px(12)  # Slightly smaller font
-  ) |>
-  cols_width(
-    Title ~ px(200),          # Wider for full titles
-    Author ~ px(200),         # Space for multiple authors
-    Journal ~ px(200),        # Space for journal names
-    Country ~ px(150),        # Space for multiple countries
-    exact_matches ~ px(75),     # Wide space for institutions
-    fuzzy_matches ~ px(75),     # Wide space for institutions
-    RetractionDate ~ px(75)     # Wide space for institutions
-  ) |>
-  fmt_markdown(columns = everything()) |>
-  text_transform(
-    locations = cells_body(),
-    fn = function(x) {
-      vapply(x, function(x) {
-        if (is.character(x)) {
-          # Insert line breaks in long strings
-          gsub("([,;]) ", "\\1\n", x)
-        } else {
-          as.character(x)
-        }
-      }, character(1))
-    }
-  ) |>
-  tab_style(
-    style = cell_text(whitespace = "pre-wrap"),  # Preserve line breaks
-    locations = cells_body()
-  ) |>
-  cols_align(
-    align = "left",
-    columns = everything()
-  ) |>
-  knitr::knit_print()
 
 ```
 
